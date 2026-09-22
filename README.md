@@ -1,302 +1,145 @@
-# AI Ticket Automation with n8n + Gemini
+# AI Ticket Triage — n8n + Google Gemini (Proof of Concept)
 
+An n8n workflow that ingests customer support tickets, classifies them using an LLM-based AI Agent, and recommends whether a ticket should be escalated to a human — built as a proof of concept to explore agentic automation patterns beyond simple prompt/response LLM calls.
 
+> **Status:** Proof of concept — tested with sample ticket data. Not deployed to production. Requires the user's own n8n instance and Gemini API credentials to run.
 
-An AI-powered customer support ticket automation workflow built with \*\*n8n\*\* and \*\*Google Gemini\*\*.
+**Demo video:** https://drive.google.com/file/d/1zW_8S4_wXaqwLDbCVjsjNOwx3-RUk-7p/view?usp=sharing
 
+---
 
+## What it does
 
-The workflow takes an incoming customer support ticket, analyzes the issue using an LLM, classifies the ticket based on category, priority and sentiment, generates a summary and recommended action, and can escalate critical issues to human support.
+Given a support ticket (customer name, email, subject, message), the workflow:
 
+1. Normalizes the input, whether it arrives via a webhook (raw JSON) or an n8n form
+2. Extracts structured fields using a Basic LLM Chain + Structured Output Parser
+3. Passes the ticket to an AI Agent (Gemini) that classifies it and decides whether escalation is needed
+4. Returns a structured classification, and can trigger a sub-workflow to escalate critical tickets to a human
 
+This was built to understand how an LLM can act as a decision-making component inside an automation pipeline — not just as a text generator — including tool-calling, memory, and conditional escalation logic.
 
-\## Workflow Overview
+## Architecture
 
-
-
-\### Webhook-based workflow
-
-
-
-```text
-
-Customer Support Ticket
-
-&#x20;       ↓
-
-&#x20;    Webhook
-
-&#x20;       ↓
-
-&#x20;  ┌────┴────┐
-
-&#x20;  ↓         ↓
-
-Basic LLM   AI Agent
-
-&#x20;Chain        ↓
-
-&#x20;  ↓       Gemini
-
-&#x20;Gemini       ↓
-
-&#x20;  ↓     Escalation Tool
-
-Structured
-
-Classification
+**Webhook-based ingestion**
 
 ```
-
-
-
-\### Form-based input
-
-
-
-```text
-
-n8n Form
-
-&#x20;  ↓
-
-Edit Fields
-
-&#x20;  ↓
-
-Normalized Ticket Data
-
+Customer support ticket (JSON)
+        │
+        ▼
+     Webhook
+        │
+   ┌────┴─────┐
+   ▼          ▼
+Basic LLM    AI Agent (Gemini)
+Chain          │
+   │           ├─ Memory
+   ▼           ├─ Tool → Escalation sub-workflow
+Structured      ▼
+Output      Structured
+Parser      classification
 ```
 
+**Form-based ingestion**
 
+```
+n8n Form  →  Edit Fields  →  Normalized ticket JSON  →  (same pipeline as above)
+```
 
-The form collects:
-
-
-
-\* Customer Name
-
-\* Email
-
-\* Subject
-
-\* Message
-
-
-
-The \*\*Edit Fields\*\* node maps these form fields into a consistent JSON structure:
-
-
+The form collects Customer Name, Email, Subject, and Message, then normalizes them into a consistent JSON payload:
 
 ```json
-
 {
-
-&#x20; "customer\_name": "...",
-
-&#x20; "email": "...",
-
-&#x20; "subject": "...",
-
-&#x20; "message": "..."
-
+  "customer_name": "...",
+  "email": "...",
+  "subject": "...",
+  "message": "..."
 }
-
 ```
 
+## Ticket classification
 
+Each ticket is analyzed across five dimensions:
 
-\## AI Ticket Classification
+| Field | Description |
+|---|---|
+| Category | Payment, Technical, Account, Order, Delivery, Other |
+| Priority | Low, Medium, High, Critical |
+| Sentiment | Positive, Neutral, Frustrated, Angry |
+| Summary | LLM-generated description of the issue |
+| Recommended Action | Suggested next step |
 
+## Escalation logic
 
+The AI Agent decides whether a ticket needs human intervention, escalating when:
 
-The workflow analyzes each ticket across the following dimensions:
+- Priority is Critical
+- There's an unauthorized payment or security concern
+- A serious payment issue requires human judgment
+- The customer explicitly asks for human support
 
+When escalation is warranted, the agent calls an n8n sub-workflow as a tool to trigger it — rather than the escalation being hardcoded with `if/else` logic.
 
+## Example
 
-| Field              | Possible Values                                     |
-
-| ------------------ | --------------------------------------------------- |
-
-| Category           | Payment, Technical, Account, Order, Delivery, Other |
-
-| Priority           | Low, Medium, High, Critical                         |
-
-| Sentiment          | Positive, Neutral, Frustrated, Angry                |
-
-| Summary            | Generated description of the issue                  |
-
-| Recommended Action | Suggested next step                                 |
-
-
-
-\## AI Agent and Escalation
-
-
-
-The AI Agent is instructed to determine whether a ticket requires human intervention.
-
-
-
-Escalation can be triggered when:
-
-
-
-\* The priority is Critical
-
-\* There is an unauthorized payment or security concern
-
-\* A serious payment issue requires human intervention
-
-\* The customer explicitly requests human support
-
-
-
-The AI Agent can use an n8n workflow tool to trigger the escalation workflow.
-
-
-
-\## Technology Used
-
-
-
-\* \*\*n8n\*\* — workflow automation and orchestration
-
-\* \*\*Google Gemini\*\* — LLM for ticket analysis and classification
-
-\* \*\*AI Agent\*\* — decision-making and tool usage
-
-\* \*\*Structured Output Parser\*\* — structured ticket classification
-
-\* \*\*Webhooks\*\* — HTTP-based ticket ingestion
-
-\* \*\*n8n Forms\*\* — customer ticket submission
-
-
-
-\## Example Input
-
-
-
+**Input**
 ```json
-
 {
-
-&#x20; "customer\_name": "Priya",
-
-&#x20; "email": "priya@example.com",
-
-&#x20; "subject": "Cannot login to my account",
-
-&#x20; "message": "I have tried resetting my password three times, but I still cannot log into my account. This is very frustrating."
-
+  "customer_name": "Priya",
+  "email": "priya@example.com",
+  "subject": "Cannot login to my account",
+  "message": "I have tried resetting my password three times, but I still cannot log into my account. This is very frustrating."
 }
-
 ```
 
-
-
-\## Example Classification
-
-
-
+**Output**
 ```json
-
 {
-
-&#x20; "category": "Account",
-
-&#x20; "priority": "High",
-
-&#x20; "sentiment": "Frustrated",
-
-&#x20; "summary": "Customer is unable to access their account despite multiple password reset attempts.",
-
-&#x20; "recommended\_action": "Verify the account and investigate the login or password reset issue."
-
+  "category": "Account",
+  "priority": "High",
+  "sentiment": "Frustrated",
+  "summary": "Customer is unable to access their account despite multiple password reset attempts.",
+  "recommended_action": "Verify the account and investigate the login or password reset issue."
 }
-
 ```
 
+## Tech stack
 
+- **n8n** — workflow orchestration
+- **Google Gemini** — LLM for classification and reasoning
+- **AI Agent (n8n)** — tool-calling and decision-making
+- **Structured Output Parser** — enforces consistent JSON output
+- **Webhooks & n8n Forms** — ticket ingestion
 
-\## Key Learning
+## Repository structure
 
-
-
-This project helped me understand how LLMs can be integrated into an automation workflow rather than being used only for text generation.
-
-
-
-The main concepts explored were:
-
-
-
-\* LLM-based classification
-
-\* AI agent workflows
-
-\* Structured outputs
-
-\* Tool-based escalation
-
-\* Webhook-based automation
-
-\* Input normalization
-
-\* Human-in-the-loop support workflows
-
-
-
-\## Project Structure
-
-
-
-```text
-
+```
 n8n-ai-ticket-automation/
-
-│
-
-├── ai-ticket-automation.json
-
+├── ai-ticket-automation.json   # Exported n8n workflow
 ├── README.md
-
 └── .gitignore
-
 ```
 
-\##Demo
-https://drive.google.com/file/d/1zW_8S4_wXaqwLDbCVjsjNOwx3-RUk-7p/view?usp=sharing
+## Setup
 
+1. Install and run [n8n](https://docs.n8n.io/hosting/) (or use n8n Cloud).
+2. Import `ai-ticket-automation.json` into your instance.
+3. Add your own Google Gemini credentials in n8n's credential manager.
+4. Review the AI Agent's system prompt and the escalation sub-workflow configuration.
+5. Activate the workflow.
+6. Submit a test ticket via the webhook endpoint or the n8n form.
 
-\## Setup
+> API credentials are **not** included in this repository. Configure your own before running.
 
+## What this explores
 
+This project was primarily about learning how LLMs fit into automation pipelines as reasoning/decision components, specifically:
 
-1\. Install or run n8n.
+- Structured output parsing for reliable downstream JSON
+- AI agent tool-calling (invoking a sub-workflow rather than static branching)
+- Memory in agent-based workflows
+- Human-in-the-loop escalation design
 
-2\. Import `ai-ticket-automation.json`.
+## Notes
 
-3\. Configure your own Google Gemini credentials in n8n.
-
-4\. Review the workflow and escalation sub-workflow configuration.
-
-5\. Activate the workflow.
-
-6\. Send a test ticket through the webhook or n8n form.
-
-
-
-> API credentials are not included in this repository. Users should configure their own credentials in n8n.
-
-
-
-\## Note
-
-
-
-This repository contains the exported n8n workflow configuration for learning and portfolio demonstration. The workflow should be reviewed and configured with the user's own credentials and environment before use.
-
-
-
+This repo contains an exported n8n workflow for portfolio and learning purposes. It is a proof of concept tested with sample data, not a production deployment — review and adapt the workflow before using it against real customer data.
