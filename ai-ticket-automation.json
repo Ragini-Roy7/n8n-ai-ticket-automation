@@ -1,0 +1,315 @@
+{
+  "name": "AI Ticket Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-ticket",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -64
+      ],
+      "id": "515d5b3c-28fa-4b80-9c38-55b6f91b6351",
+      "name": "Webhook",
+      "webhookId": "8446d902-53ab-4e22-8fd1-9db5e0d40d33"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this customer support ticket:\n\nCustomer Name: {{ $json.body.customer_name }}\nEmail: {{ $json.body.email }}\nSubject: {{ $json.body.subject }}\nCustomer Message: {{ $json.body.message }}\nClassify the ticket.",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are an AI customer support ticket classifier.  Classify the ticket into:  Category: Payment, Technical, Account, Order, Delivery, Other  Priority: Low, Medium, High, Critical  Sentiment: Positive, Neutral, Frustrated, Angry  Also provide: - summary - recommended_action  Return only the requested structured output."
+            },
+            {
+              "type": "HumanMessagePromptTemplate",
+              "message": "=Customer Name: {{ $json.body.customer_name }}\nEmail: {{ $json.body.email }}\nSubject: {{ $json.body.subject }}\nCustomer Message: {{ $json.body.message }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        208,
+        0
+      ],
+      "id": "7f1697e5-ee14-48bb-b434-ccb4b162e9a4",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        64,
+        256
+      ],
+      "id": "78908c32-f8ef-4b50-8b82-cc26d92825bf",
+      "name": "Google Gemini Chat Model"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"category\": \"Payment\",\n  \"priority\": \"High\",\n  \"sentiment\": \"Frustrated\",\n  \"summary\": \"Customer was charged but order is still pending.\",\n  \"recommended_action\": \"Escalate to payment support\"\n}",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        272,
+        176
+      ],
+      "id": "0299d86f-c603-4e13-90cf-57ab67694ecf",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        288,
+        416
+      ],
+      "id": "8a057496-6caf-40da-82f0-851e23b1575a",
+      "name": "Google Gemini Chat Model1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Customer support ticket:\n{{ $json.customer_name }}\n{{ $json.email }}\n{{ $json.subject }}\n{{ $json.message }}\n\n\nClassify this ticket by:\n- Category\n- Priority\n- Sentiment\n- Summary\n- Recommended action\n\nIf the ticket involves a payment problem, security issue, legal threat, or is marked Critical priority, call the escalation tool with a brief reason before finalizing your response.\n\nReturn your final classification once escalation (if needed) has been handled.",
+        "options": {
+          "systemMessage": "You are an AI customer support ticket automation agent.\n\nYour job is to analyze incoming customer support tickets.\n\nFor every ticket:\n1. Identify the category.\n2. Determine the priority.\n3. Detect the customer's sentiment.\n4. Summarize the issue.\n5. Decide whether human escalation is required.\n\nUse the escalation tool when:\n- Priority is Critical\n- There is an unauthorized payment or security concern\n- A serious payment issue requires human intervention\n- The customer explicitly requires human support\n\nDo not use the escalation tool for normal low or medium priority issues.\n\nWhen escalation is required, call the available escalation tool and provide the customer name, email, subject, reason and priority."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        480,
+        -144
+      ],
+      "id": "a6ebf110-f90a-4caa-aa59-a291c6668566",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        640,
+        368
+      ],
+      "id": "7bd7b6bc-dcbd-4b1f-9809-e36cd225a97a",
+      "name": "Google Gemini Chat Model2"
+    },
+    {
+      "parameters": {
+        "description": "Escalate a customer support ticket to human support when the issue is critical, involves a payment problem, security concern, or requires human intervention.",
+        "workflowId": {
+          "__rl": true,
+          "value": "SRGAdS21RXDbRxXg",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/SRGAdS21RXDbRxXg",
+          "cachedResultName": "My Sub-Workflow 1"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        528,
+        208
+      ],
+      "id": "b8195b3f-b74b-4070-b05c-d00069827f19",
+      "name": "Call 'My Sub-Workflow 1'"
+    },
+    {
+      "parameters": {
+        "formTitle": "AI Support Ticket",
+        "formDescription": "Submit a customer support ticket for AI-powered classification and escalation.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Customer Name"
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldType": "email"
+            },
+            {
+              "fieldLabel": "Subject"
+            },
+            {
+              "fieldLabel": "Message",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.5,
+      "position": [
+        816,
+        144
+      ],
+      "id": "f7c4f807-b4ab-45e9-a2a5-6f341eb6f0b6",
+      "name": "On form submission",
+      "webhookId": "2ee7854c-b8fc-40e9-a89d-c220f0732cf5"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6952d333-48d1-41a4-9dc7-c9214a19076e",
+              "name": "customer_name",
+              "value": "={{ $json[\"Customer Name\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "70dadef7-5a97-444d-b811-18649447602e",
+              "name": "email",
+              "value": "={{ $json[\"Email\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "aca4c762-287b-49c7-b89a-d4c10c190292",
+              "name": "subject",
+              "value": "={{ $json[\"Subject\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "59396e24-4bf1-4218-a908-e013d05bbe39",
+              "name": "message",
+              "value": "={{ $json[\"Message\"] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        816,
+        -160
+      ],
+      "id": "01f093dd-ab27-4e38-bb4f-797c7c90dade",
+      "name": "Edit Fields"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        []
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Structured Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        []
+      ]
+    },
+    "Call 'My Sub-Workflow 1'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d58c217a-4972-463f-a20a-13e5d74c704f",
+  "id": "1kQdnDZZqJXdtMTw",
+  "tags": []
+}
